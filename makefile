@@ -1,5 +1,5 @@
 make: clean compile
-	gcc -m32 main.o -o main
+	gcc -m32 main.o -o main.out
 
 compile:
 	nasm -g -f elf32 main.asm -o main.o
