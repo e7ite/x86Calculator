@@ -141,10 +141,13 @@ OUTPUTOPTS:
     add         esp, 0Ch
 
     ; Get user option choice
+    ; C:    int tmp;
+    ;       printf("Pick an option [1-9]: ");
     sub         esp, 4
     push        getoptmsg
     call        printf
     add         esp, 4
+    ; C:    scanf("%i", &tmp);
     lea         eax, [esp]
     push        eax
     push        getintfmt
@@ -156,8 +159,11 @@ OUTPUTOPTS:
     cmp         eax, 9
     jbe         VALID_INPUT
 INVALID_INPUT:
-    ; C:    puts("Input invalid" [1-9] only!")
-    ;       puts("Press ENTER to continue...")
+    ; Output error message. For some reason I need to use
+    ; read to input the character as scanf is not blocking
+    ; and only read is blocking like it should.
+    ; C:    puts("Input invalid" [1-9] only!");
+    ;       puts("Press ENTER to continue...");
     ;       read(STDIN_FILENO, &local_var, 1);
     push        errmsg
     call        puts
@@ -194,7 +200,6 @@ main:
 
     ; C:    if (argc == 2)
     ;           result = atof(argv[1]);
-    ;
     cmp         dword [ebp + 8], 2
     jne         NO_CMD_ARG       
     mov         eax, dword [ebp + 0Ch]
