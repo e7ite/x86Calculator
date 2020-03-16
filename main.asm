@@ -375,7 +375,7 @@ DISPLAYOPTS:
     ;       else if (menuChoice == 10)
     ;           result = sqrt(result);
     ;       else if (menuChoice == 11)
-    ;           result = (1/log2(10)) * log2(result)
+    ;           result = (1 / log2(10)) * log2(result)
     ;       else if (menuChoice == 12)
     ;           return 0;
     mov         eax, dword [ebp - 14h]
@@ -482,7 +482,6 @@ SQRT_OP:
     fstp        qword [ebp - 10h]
     jmp         DISPLAYOPTS
 LOG10_OP:
-; log10(x) = (1/log2(b)) * log2(x)
     cmp         eax, 11
     jne         EX_OP
     fld1
