@@ -1,10 +1,16 @@
 section .bss
+    stdinptr    resd 1
+    stdoutptr   resd 1
+    inputbuf    resb 16
 
 section .data
 ; puts output strings
     greeting    db "Welcome to the x86 calculator!", 0
-    getoptmsg   db "Pick an option [1-9]: ", 0
-    errmsg      db "Input invalid! [1-9] only!", 0
+    getoperand  db "Enter second operand: ", 0
+    getoptmsg   db "Pick an option between [1-9]: ", 0
+    errmsg      db "Invalid input! Must be between [1-9]: ", 0
+    errmsg2     db "Invalid input! Must be a number!", 0
+    errmsg3     db "You tried to divide by 0!", 0
     errcont     db "Press ENTER to continue...", 0
     setopt      db "1. Set the input", 0
     addopt      db "2. Add to input", 0
@@ -15,16 +21,21 @@ section .data
     sinopt      db "7. Calculate sin of input", 0
     cosopt      db "8. Calculate cos of input", 0 
     tanopt      db "9. Calculate tan of input", 0
+    exitopt     db "10. Exit program", 0
     
 ; printf fmt strings
     outputfmt   db "Current value: %.2f", 0Ah, 0
+    optionfmt   db "%5s", 0Ah, 0
 
 ; scanf format strings
-    getdblfmt   db "%lf", 0
-    getintfmt   db "%i", 0
-    getcharfmt  db "%c", 0
+    getdblfmt   db "%lf ", 0
+    getintfmt   db "%i ", 0
+    getcharfmt  db "%c ", 0
+
 ; misc C-string arguments
     clearscr    db "clear", 0
+    pausescr    db "pause", 0
+    rwmode      db "w+", 0
 
 ; double constants
     DBL_0_0     dq 0.0
@@ -32,12 +43,16 @@ section .data
 section .text
 ; C imported functions from libc
     extern      printf
-    extern      scanf
+    extern      sscanf
     extern      system
     extern      puts
-    extern      read
-    extern      STDIN_FILENO
+    extern      getchar
     extern      atof
+    extern      stdin
+    extern      fflush
+    extern      fdopen
+    extern      fprintf
+    extern      fgets
 
 ; Custom functions
     global      GetInput
@@ -46,23 +61,71 @@ section .text
 ; Entry point
     global      main
 
-; void __cdecl GetInput(unsigned int opt, double* arg1);
+; bool __cdecl CheckForDivideByZero(double divisor)
+CheckForDivideByZero:
+    ; Preserve old stack frame and create a new one
+    push        ebp
+    mov         ebp, esp
+
+    ; Check if divisor is zero
+    fld         qword [DBL_0_0]
+    fld         qword [ebp + 8]
+    fcompp
+    fstsw       ax
+    test        ax, 4000h
+    jz          NO_DIVIDE_BY_ZERO
+    push        errmsg3
+    call        puts
+    push        errcont
+    call        puts
+    add         esp, 8
+    call        getchar
+    mov         al, 1
+    jmp         DIVIDE_BY_ZERO
+NO_DIVIDE_BY_ZERO:
+    mov         al, 0
+
+DIVIDE_BY_ZERO:
+    ; Restore old stack frame and return
+    pop         ebp
+    ret         
+
+
+; void __cdecl GetInput(unsigned int opt, double* operand);
 GetInput:
     ; Prologue
     push        ebp
     mov         ebp, esp
 
     ; If binary operation, display message and get input
+    ; C:    if (opt <= 6)
+    ;       {
+    ;           printf("Enter second operand: ");
+    ;           fgets(inputbuf, 16, *stdinptr);
+    ;           sscanf(inputbuf, "%lf ", *operand);
+    ;       }
     cmp         dword [ebp + 8], 6
-    jbe         END
-    push        getoptmsg  
+    ja         END
+VALID_INPUT_LOOP2:
+    push        getoperand
     call        printf
     add         esp, 4
+    push        dword [stdinptr]
+    push        16
+    push        inputbuf
+    call        fgets
+    add         esp, 0Ch
     push        dword [ebp + 0Ch]
-    push        getintfmt
-    call        scanf
-    add         esp, 8
-
+    push        getdblfmt
+    push        inputbuf
+    call        sscanf
+    add         esp, 0Ch
+    cmp         eax, 1
+    je          END
+    push        errmsg2
+    call        puts
+    add         esp, 4
+    jmp         VALID_INPUT_LOOP2
 END:
     ; Epilogue
     pop         ebp
@@ -74,7 +137,7 @@ DisplayMenu:
     push        ebp
     mov         ebp, esp
 
-    ; C:    const char* options[9] =            dword [esp]             
+    ; C:    const char* options[9] =          
     ;       { 
     ;           "1. Set the input",
     ;           "2. Add to input",
@@ -85,8 +148,9 @@ DisplayMenu:
     ;           "7. Calculate sin of input",
     ;           "8. Calculate cos of input",     
     ;           "9. Calculate tan of input",
+    ;           "10. Exit program"
     ;       };
-    sub         esp, 24h 
+    sub         esp, 28h 
     mov         eax, setopt
     mov         dword [esp], eax
     mov         eax, addopt
@@ -105,6 +169,8 @@ DisplayMenu:
     mov         dword [esp + 1Ch], eax
     mov         eax, tanopt 
     mov         dword [esp + 20h], eax 
+    mov         eax, exitopt
+    mov         dword [esp + 24h], eax
 
 VALID_INPUT_LOOP:
     ; Clear screen
@@ -120,6 +186,10 @@ VALID_INPUT_LOOP:
     add         esp, 4
 
     ; Output options
+    ; C:    for (int i = 0; i < 9; i++)
+    ;       {
+    ;           puts(options[i]);
+    ;       }
     mov         ecx, 0
 OUTPUTOPTS:
     push        ecx
@@ -128,59 +198,56 @@ OUTPUTOPTS:
     add         esp, 4
     pop         ecx
     inc         ecx
-    cmp         ecx, 9
+    cmp         ecx, 10
     jb          OUTPUTOPTS
 
     ; Output current value
-    ; C:    printf("Current result = %lf\n", value);
-    sub         esp, 8h
+    ; C:    fprintf(*stdoutptr, "Current result = %lf\n", value);
+    sub         esp, 8
     fld         qword [ebp + 8]
     fstp        qword [esp]
-    push        outputfmt 
-    call        printf
-    add         esp, 0Ch
+    push        outputfmt
+    push        dword [stdoutptr]
+    call        fprintf
+    add         esp, 10h
 
     ; Get user option choice
     ; C:    int tmp;
     ;       printf("Pick an option [1-9]: ");
+    ;       fgets(inputbuf, 16, *stdoutptr);
+    ;       sscanf(inputbuf, "%i ", &tmp);
     sub         esp, 4
     push        getoptmsg
     call        printf
     add         esp, 4
-    ; C:    scanf("%i", &tmp);
-    lea         eax, [esp]
+    push        dword [stdoutptr]
+    push        16
+    push        inputbuf
+    call        fgets
+    add         esp, 0Ch
+    lea         eax, [ebp - 2Ch]
     push        eax
     push        getintfmt
-    call        scanf
-    add         esp, 8
+    push        inputbuf
+    call        sscanf
+    add         esp, 0Ch
     pop         eax
     cmp         eax, 1
     jb          INVALID_INPUT
     cmp         eax, 9
     jbe         VALID_INPUT
 INVALID_INPUT:
-    ; Output error message. For some reason I need to use
-    ; read to input the character as scanf is not blocking
-    ; and only read is blocking like it should.
-    ; C:    puts("Input invalid" [1-9] only!");
-    ;       puts("Press ENTER to continue...");
-    ;       read(STDIN_FILENO, &local_var, 1);
     push        errmsg
     call        puts
     push        errcont
     call        puts
-    add         esp, 4
-    push        1
-    lea         eax, [esp]
-    push        eax
-    push        0
-    call        read
-    add         esp, 10h
+    add         esp, 8
+    call        getchar
     jmp         VALID_INPUT_LOOP
 
 VALID_INPUT:
     ; Epilogue
-    add         esp, 24h
+    add         esp, 28h
     pop         ebp
     ret
 
@@ -198,10 +265,23 @@ main:
     movsd       qword [ebp - 8], xmm0
     movsd       qword [ebp - 10h], xmm0
 
+    ; Get location of standard stream buffers
+    ; C:    *stdinptr  = fdopen( STDIN_FILENO, "w+");
+    ;       *stdoutptr = fdopen(STDOUT_FILENO, "w+");
+    push        rwmode
+    push        0
+    call        fdopen
+    add         esp, 4
+    mov         dword [stdinptr], eax
+    push        1
+    call        fdopen
+    add         esp, 8
+    mov         dword [stdoutptr], eax
+
     ; C:    if (argc == 2)
     ;           result = atof(argv[1]);
     cmp         dword [ebp + 8], 2
-    jne         NO_CMD_ARG       
+    jne         DISPLAYOPTS       
     mov         eax, dword [ebp + 0Ch]
     push        dword [eax + 4]
     call        atof
@@ -210,7 +290,7 @@ main:
 
     ; Show menu
     ; C:    DisplayMenu(result);
-NO_CMD_ARG:
+DISPLAYOPTS:
     sub         esp, 8
     fld         qword [ebp - 10h]
     fstp        qword [esp]
@@ -225,6 +305,88 @@ NO_CMD_ARG:
     push        dword [ebp - 14h]
     call        GetInput
     add         esp, 8
+
+    ; C:    if (menuChoice == 1)
+    ;           result = input; 
+    ;       else if (menuChoice == 2)
+    ;           result += input;
+    ;       else if (menuChoice == 3)
+    ;           result -= input;
+    ;       else if (menuChoice == 4)
+    ;           result *= input;
+    ;       else if (menuChoice == 5)
+    ;           result /= input;
+    ;       else if (menuChoice == 6)
+    ;           result %= input;
+    ;       else if (menuChoice == 7)
+    ;           result = sin(result);
+    ;       else if (menuChoice == 8)
+    ;           result = cos(result);
+    ;       else if (menuChoice == 9)
+    ;           result = tan(result);
+    mov         eax, dword [ebp - 14h]
+    cmp         eax, 1
+    jne         ADD_OP
+    movsd       xmm0, qword [ebp - 8]
+    movsd       qword [ebp - 10h], xmm0
+    jmp         DISPLAYOPTS
+ADD_OP:
+    cmp         eax, 2
+    jne         SUB_OP
+    fld         qword [ebp - 10h]
+    fld         qword [ebp - 8]
+    faddp
+    fstp        qword [ebp - 10h]
+    jmp         DISPLAYOPTS
+SUB_OP:
+    cmp         eax, 3
+    jne         MUL_OP
+    fld         qword [ebp - 10h]
+    fsub        qword [ebp - 8]
+    fstp        qword [ebp - 10h]
+    jmp         DISPLAYOPTS
+MUL_OP:
+    cmp         eax, 4
+    jne         DIV_OP
+    fld         qword [ebp - 10h]
+    fld         qword [ebp - 8]
+    fmulp       ST1, ST0
+    fstp        qword [ebp - 10h]
+    jmp         DISPLAYOPTS
+DIV_OP:
+    cmp         eax, 5
+    jne         MOD_OP
+    sub         esp, 8
+    fld         qword [ebp - 8]
+    fstp        qword [esp]
+    call        CheckForDivideByZero
+    add         esp, 8
+    test        al, al
+    jz          DIV_OK
+    jmp         DISPLAYOPTS
+DIV_OK:
+    fld         qword [ebp - 10h]
+    fdiv        qword [ebp - 8]
+    fstp        qword [ebp - 10h]
+    jmp         DISPLAYOPTS
+MOD_OP:
+    cmp         eax, 6
+    jne         SIN_OP
+    sub         esp, 8
+    fld         qword [ebp - 8]
+    fstp        qword [esp]
+    call        CheckForDivideByZero
+    add         esp, 8
+    test        al, al
+    jz          MOD_OK
+    jmp         DISPLAYOPTS
+MOD_OK:
+    fld         qword [ebp - 8]        
+    fld         qword [ebp - 10h]
+    fprem
+    fstp        qword [ebp - 10h]
+    jmp         DISPLAYOPTS
+SIN_OP:
 
     ; Clean up stack frame and exit
     add         esp, 14h
