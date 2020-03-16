@@ -373,16 +373,10 @@ DISPLAYOPTS:
     ;       else if (menuChoice == 9)
     ;           result = tan(result);
     ;       else if (menuChoice == 10)
-    ;           result = arcsin(result);
-    ;       else if (menuChoice == 11)
-    ;           result = arccos(result);
-    ;       else if (menuChoice == 12)
-    ;           result = arctan(result);
-    ;       else if (menuChoice == 13)
     ;           result = sqrt(result);
-    ;       else if (menuChoice == 14)
+    ;       else if (menuChoice == 11)
     ;           result = (1/log2(10)) * log2(result)
-    ;       else if (menuChoice == 15)
+    ;       else if (menuChoice == 12)
     ;           return 0;
     mov         eax, dword [ebp - 14h]
     cmp         eax, 1
