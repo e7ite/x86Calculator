@@ -101,7 +101,7 @@ DegreesToRadians:
     push        ebp
     mov         ebp, esp
 
-    ; Convert to degrees
+    ; Convert to radians (degrees * PI / 180)
     fldpi
     fld         qword [DBL_180_0]
     fdivp
@@ -118,7 +118,7 @@ RadiansToDegrees:
     push        ebp
     mov         ebp, esp
 
-    ; Convert to degrees
+    ; Convert to degrees (radians * 180 / PI)
     fld         qword [DBL_180_0]
     fldpi
     fdivp
