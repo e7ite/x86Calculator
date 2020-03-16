@@ -5,7 +5,7 @@ available options, and allows the user to pick a desired calculation until they 
 optional command line argument as an initial value for the calculator to use.
 
 ## Usage
-`./calc.out <VALUE>
+`./calc.out <VALUE>`
 
 ## Image Preview
 ![](/preview.png)
