@@ -6,26 +6,29 @@ section .bss
 section .data
 ; puts output strings
     greeting    db "Welcome to the x86 calculator!", 0
+    greeting2   db "All trigonometric functions are in degrees!", 0
     getoperand  db "Enter second operand: ", 0
-    getoptmsg   db "Pick an option between [1-9]: ", 0
-    errmsg      db "Invalid input! Must be between [1-9]: ", 0
+    getoptmsg   db "Pick an option between [1-12]: ", 0
+    errmsg      db "Invalid input! Must be between [1-12]!", 0
     errmsg2     db "Invalid input! Must be a number!", 0
     errmsg3     db "You tried to divide by 0!", 0
     errcont     db "Press ENTER to continue...", 0
-    setopt      db "1. Set the input", 0
-    addopt      db "2. Add to input", 0
-    subopt      db "3. Subtract from input", 0
-    multopt     db "4. Multiply input", 0
-    divopt      db "5. Divide input", 0
-    modopt      db "6. Mod input", 0
-    sinopt      db "7. Calculate sin of input", 0
-    cosopt      db "8. Calculate cos of input", 0 
-    tanopt      db "9. Calculate tan of input", 0
-    exitopt     db "10. Exit program", 0
+    setopt      db "Set the input", 0
+    addopt      db "Add to input", 0
+    subopt      db "Subtract from input", 0
+    multopt     db "Multiply input", 0
+    divopt      db "Divide input", 0
+    modopt      db "Mod input", 0
+    sinopt      db "Calculate sin of input", 0
+    cosopt      db "Calculate cos of input", 0 
+    tanopt      db "Calculate tan of input", 0
+    sqrtopt     db "Calculate square root of input", 0
+    logopt      db "Calculate logarithm (base 10) of input", 0
+    exitopt     db "Exit program", 0
     
 ; printf fmt strings
     outputfmt   db "Current value: %.2f", 0Ah, 0
-    optionfmt   db "%5s", 0Ah, 0
+    optionfmt   db "%2i. %s", 0Ah, 0
 
 ; scanf format strings
     getdblfmt   db "%lf ", 0
@@ -38,7 +41,8 @@ section .data
     rwmode      db "w+", 0
 
 ; double constants
-    DBL_0_0     dq 0.0
+    DBL_10_0    dq 10.0
+    DBL_180_0   dq 180.0
 
 section .text
 ; C imported functions from libc
@@ -68,7 +72,7 @@ CheckForDivideByZero:
     mov         ebp, esp
 
     ; Check if divisor is zero
-    fld         qword [DBL_0_0]
+    fldz
     fld         qword [ebp + 8]
     fcompp
     fstsw       ax
@@ -87,9 +91,43 @@ NO_DIVIDE_BY_ZERO:
 
 DIVIDE_BY_ZERO:
     ; Restore old stack frame and return
+    mov         esp, ebp
     pop         ebp
-    ret         
+    ret
 
+; double __cdecl DegreesToRadians(double degrees)
+DegreesToRadians:
+    ; Prologue
+    push        ebp
+    mov         ebp, esp
+
+    ; Convert to degrees
+    fldpi
+    fld         qword [DBL_180_0]
+    fdivp
+    fld         qword [ebp + 8]
+    fmulp
+
+    ; Epilogue
+    leave
+    ret
+
+; double __cdecl RadiansToDegrees(double radians)
+RadiansToDegrees:
+    ; Prologue
+    push        ebp
+    mov         ebp, esp
+
+    ; Convert to degrees
+    fld         qword [DBL_180_0]
+    fldpi
+    fdivp
+    fld         qword [ebp + 8]
+    fmulp
+
+    ; Epilogue
+    leave
+    ret
 
 ; void __cdecl GetInput(unsigned int opt, double* operand);
 GetInput:
@@ -105,7 +143,7 @@ GetInput:
     ;           sscanf(inputbuf, "%lf ", *operand);
     ;       }
     cmp         dword [ebp + 8], 6
-    ja         END
+    ja          END
 VALID_INPUT_LOOP2:
     push        getoperand
     call        printf
@@ -128,6 +166,7 @@ VALID_INPUT_LOOP2:
     jmp         VALID_INPUT_LOOP2
 END:
     ; Epilogue
+    mov         esp, ebp
     pop         ebp
     ret
 
@@ -137,20 +176,22 @@ DisplayMenu:
     push        ebp
     mov         ebp, esp
 
-    ; C:    const char* options[9] =          
+    ; C:    const char* options[15] =          
     ;       { 
-    ;           "1. Set the input",
-    ;           "2. Add to input",
-    ;           "3. Subtract from input",
-    ;           "4. Multiply input",
-    ;           "5. Divide input",
-    ;           "6. Mod input",
-    ;           "7. Calculate sin of input",
-    ;           "8. Calculate cos of input",     
-    ;           "9. Calculate tan of input",
-    ;           "10. Exit program"
+    ;           "Set the input",
+    ;           "Add to input",
+    ;           "Subtract from input",
+    ;           "Multiply input",
+    ;           "Divide input",
+    ;           "Mod input",
+    ;           "Calculate sin of input",
+    ;           "Calculate cos of input",     
+    ;           "Calculate tan of input",
+    ;           "Calculate sqrt of input",
+    ;           "Calculate logarithm of input",
+    ;           "Exit program"
     ;       };
-    sub         esp, 28h 
+    sub         esp, 30h 
     mov         eax, setopt
     mov         dword [esp], eax
     mov         eax, addopt
@@ -167,10 +208,14 @@ DisplayMenu:
     mov         dword [esp + 18h], eax 
     mov         eax, cosopt 
     mov         dword [esp + 1Ch], eax
-    mov         eax, tanopt 
-    mov         dword [esp + 20h], eax 
-    mov         eax, exitopt
+    mov         eax, tanopt
+    mov         dword [esp + 20h], eax
+    mov         eax, sqrtopt 
     mov         dword [esp + 24h], eax
+    mov         eax, logopt 
+    mov         dword [esp + 28h], eax
+    mov         eax, exitopt
+    mov         dword [esp + 2Ch], eax
 
 VALID_INPUT_LOOP:
     ; Clear screen
@@ -181,39 +226,42 @@ VALID_INPUT_LOOP:
 
     ; Greet User
     ; C:    puts("Welcome to x86 calculator!");
+    ;       puts("All trigonometric functions are in degrees!");
     push        greeting
     call        puts
-    add         esp, 4
+    push        greeting2
+    call        puts
+    add         esp, 8
 
     ; Output options
-    ; C:    for (int i = 0; i < 9; i++)
-    ;       {
-    ;           puts(options[i]);
-    ;       }
+    ; C:    for (int i = 0; i < 12; i++)
+    ;           printf("%i %5s", i + 1, options[i]);
     mov         ecx, 0
 OUTPUTOPTS:
     push        ecx
     push        dword [esp + 4 + ecx * 4]
-    call        puts
-    add         esp, 4
+    push        ecx
+    add         dword [esp], 1 
+    push        optionfmt
+    call        printf
+    add         esp, 0Ch
     pop         ecx
     inc         ecx
-    cmp         ecx, 10
+    cmp         ecx, 12
     jb          OUTPUTOPTS
 
     ; Output current value
-    ; C:    fprintf(*stdoutptr, "Current result = %lf\n", value);
+    ; C:    printf("Current result = %lf\n", value);
     sub         esp, 8
     fld         qword [ebp + 8]
     fstp        qword [esp]
     push        outputfmt
-    push        dword [stdoutptr]
-    call        fprintf
-    add         esp, 10h
+    call        printf
+    add         esp, 0Ch
 
     ; Get user option choice
     ; C:    int tmp;
-    ;       printf("Pick an option [1-9]: ");
+    ;       printf("Pick an option [1-12]: ");
     ;       fgets(inputbuf, 16, *stdoutptr);
     ;       sscanf(inputbuf, "%i ", &tmp);
     sub         esp, 4
@@ -225,7 +273,7 @@ OUTPUTOPTS:
     push        inputbuf
     call        fgets
     add         esp, 0Ch
-    lea         eax, [ebp - 2Ch]
+    lea         eax, [ebp - 34h]
     push        eax
     push        getintfmt
     push        inputbuf
@@ -234,7 +282,7 @@ OUTPUTOPTS:
     pop         eax
     cmp         eax, 1
     jb          INVALID_INPUT
-    cmp         eax, 9
+    cmp         eax, 12
     jbe         VALID_INPUT
 INVALID_INPUT:
     push        errmsg
@@ -247,7 +295,7 @@ INVALID_INPUT:
 
 VALID_INPUT:
     ; Epilogue
-    add         esp, 28h
+    mov         esp, ebp
     pop         ebp
     ret
 
@@ -261,9 +309,9 @@ main:
     ;       double result = 0.0;                qword [ebp - 10h]
     ;       unsigned int menuChoice;            dword [ebp - 14h]
     sub         esp, 14h
-    movsd       xmm0, qword [DBL_0_0]
-    movsd       qword [ebp - 8], xmm0
-    movsd       qword [ebp - 10h], xmm0
+    fldz
+    fst         qword [ebp - 8]
+    fstp        qword [ebp - 10h]
 
     ; Get location of standard stream buffers
     ; C:    *stdinptr  = fdopen( STDIN_FILENO, "w+");
@@ -324,6 +372,18 @@ DISPLAYOPTS:
     ;           result = cos(result);
     ;       else if (menuChoice == 9)
     ;           result = tan(result);
+    ;       else if (menuChoice == 10)
+    ;           result = arcsin(result);
+    ;       else if (menuChoice == 11)
+    ;           result = arccos(result);
+    ;       else if (menuChoice == 12)
+    ;           result = arctan(result);
+    ;       else if (menuChoice == 13)
+    ;           result = sqrt(result);
+    ;       else if (menuChoice == 14)
+    ;           result = (1/log2(10)) * log2(result)
+    ;       else if (menuChoice == 15)
+    ;           return 0;
     mov         eax, dword [ebp - 14h]
     cmp         eax, 1
     jne         ADD_OP
@@ -387,7 +447,63 @@ MOD_OK:
     fstp        qword [ebp - 10h]
     jmp         DISPLAYOPTS
 SIN_OP:
-
+    cmp         eax, 7
+    jne         COS_OP
+    sub         esp, 8   
+    fld         qword [ebp - 10h]
+    fstp        qword [esp]
+    call        DegreesToRadians
+    add         esp, 8
+    fsin
+    fstp        qword [ebp - 10h]
+    jmp         DISPLAYOPTS
+COS_OP:
+    cmp         eax, 8
+    jne         TAN_OP
+    sub         esp, 8
+    fld         qword [ebp - 10h]
+    fstp        qword [esp]
+    call        DegreesToRadians
+    add         esp, 8
+    fcos
+    fstp        qword [ebp - 10h]
+    jmp         DISPLAYOPTS
+TAN_OP:
+    cmp         eax, 9
+    jne         SQRT_OP
+    sub         esp, 8
+    fld         qword [ebp - 10h]
+    fstp        qword [esp]
+    call        DegreesToRadians
+    add         esp, 8
+    fptan
+    fstp        ST0
+    fstp        qword [ebp - 10h]
+    jmp         DISPLAYOPTS
+SQRT_OP:
+    cmp         eax, 10
+    jne         LOG10_OP
+    fld         qword [ebp - 10h]
+    fsqrt
+    fstp        qword [ebp - 10h]
+    jmp         DISPLAYOPTS
+LOG10_OP:
+; log10(x) = (1/log2(b)) * log2(x)
+    cmp         eax, 11
+    jne         EX_OP
+    fld1
+    fld         qword [DBL_10_0]
+    fyl2x
+    fld1
+    fdiv        ST0, ST1
+    fld1
+    fld         qword [ebp - 10h]
+    fyl2x
+    fmulp
+    fstp        qword [ebp - 10h]
+    jmp         DISPLAYOPTS
+    
+EX_OP:
     ; Clean up stack frame and exit
     add         esp, 14h
     mov         eax, 0
