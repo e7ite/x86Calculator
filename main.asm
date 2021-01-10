@@ -3,7 +3,7 @@ section .bss
     stdoutptr   resd 1
     inputbuf    resb 16
 
-section .data
+section .rodata
 ; puts output strings
     greeting    db "Welcome to the x86 calculator!", 0
     greeting2   db "All trigonometric functions are in degrees!", 0

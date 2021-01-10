@@ -1,5 +1,5 @@
 make: clean compile
-	gcc -m32 main.o -o calc.out
+	gcc -no-pie -m32 main.o -o calc.out
 
 compile:
 	nasm -g -f elf32 main.asm -o main.o

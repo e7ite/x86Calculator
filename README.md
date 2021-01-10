@@ -1,3 +1,5 @@
+[![Build status](https://ci.appveyor.com/api/projects/status/cra5k9fv8u8k5sba?svg=true)](https://ci.appveyor.com/project/e7ite/x86calculator)
+
 # x86Calculator
 
 This program was for me to practice my x86 knowledge and x87 FPU understanding. All it does is clear screen, print out the
